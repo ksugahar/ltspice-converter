@@ -294,6 +294,15 @@ class NetlistParser:
                 else:
                     # 3-terminal form (no substrate).
                     value = ' '.join(parts[4:])
+            elif len(parts) == 4:
+                # Modelless form: Q/J <name> <n1> <n2> <n3>. LTspice's npn/pnp/
+                # njf/pjf symbols allow omitting SYMATTR Value, in which case the
+                # extracted netlist has no trailing model token. Accept and keep
+                # value empty; AscGenerator will round-trip without SYMATTR Value.
+                node_pos = parts[1]
+                node_ctrl = parts[2]
+                node_neg = parts[3]
+                value = ''
             else:
                 return None
         elif comp_type == ComponentType.MOSFET:
@@ -303,6 +312,13 @@ class NetlistParser:
                 node_ctrl = parts[2]  # Gate
                 node_neg = parts[3]  # Source
                 value = parts[5] if len(parts) > 5 else ''
+            elif len(parts) == 5:
+                # Modelless form: M <name> <D> <G> <S> <B>. Same rationale as
+                # the BJT/JFET modelless branch above.
+                node_pos = parts[1]
+                node_ctrl = parts[2]
+                node_neg = parts[3]
+                value = ''
             else:
                 return None
         elif comp_type == ComponentType.COUPLED:

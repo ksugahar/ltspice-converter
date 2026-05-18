@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] — 2026-05-19
+
+### Fixed (D2: two round-trip-drop bugs surfaced by GitHub corpus)
+
+Two distinct cases where the .asc → netlist → .asc round-trip silently
+dropped a component are now preserved. Both came from training-data
+analysis on a 720-file GitHub `.asc` corpus.
+
+- **D2-1 (modelless BJT/JFET/MOSFET)**: LTspice's `npn`/`pnp`/`njf`/
+  `pjf`/`nmos`/`pmos` symbols allow omitting `SYMATTR Value`, in which
+  case the canonical netlist line has no trailing model token (e.g.
+  `Q1 N006 N005 0` instead of `Q1 N006 N005 0 NPN`).  `NetlistParser`
+  used to require `len(parts) >= 5` for BJT/JFET and `>= 6` for MOSFET
+  and silently `return None`-ed the modelless form.  The two-letter
+  555-timer reset transistors, vintage guitar-pedal BJT amplifiers
+  (boss-ge7-equalizer, dunlop-crybaby-wah, schaller-tremolo, ...) all
+  hit this case.  New `len(parts) == 4` (Q/J) and `len(parts) == 5` (M)
+  branches accept the modelless form and leave `value` empty so the
+  regenerated .asc has no `SYMATTR Value` either — byte-equal round-trip.
+
+- **D2-2 (InstName whose first letter is not a SPICE prefix)**: A user
+  who names a resistor `NTC` (on a `res` symbol) ends up with a netlist
+  line `NTC N001 N002 R={...}` whose first letter `N` is not a SPICE
+  device prefix at all.  LTspice itself prefix-fixes such names to
+  `R§NTC` in the canonical netlist.  The pure-Python `NetlistExtractor`
+  prefix-fix already handled the *conflicting* case (e.g. `T3a` on an
+  `ind2` symbol → `L§T3a` because T is a SPICE prefix used by another
+  device family) but was gated by `name[0] in _SPICE_PREFIXES`, which
+  excluded the more common "not a prefix at all" case.  Removed the
+  gate so any non-matching first letter gets the canonical `§`-prefix.
+
+### Performance
+
+Round-trip pass rate (component-count match) on three LAB-private
+corpora:
+
+| Corpus | 0.3.7 | 0.3.8 |
+|---|---|---|
+| GitHub repos (720 files) | 696/720 = 96.7 % | **717/720 = 99.6 %** (+2.9 pt) |
+| LTspice Examples (100 files)     | 99/100 = 99.0 % | 99/100 = 99.0 % (unchanged) |
+| LTspice Applications (4099 files) | 4099/4099 = 100 % | 4099/4099 = 100 % (no regression) |
+
+Drift cluster reduction on GitHub repos: Q (BJT) losses 25 → 0;
+R/N-prefix-mismatch losses 5 → 0.  Remaining 3 failures cluster on
+multi-pin SUBCIRCUITs with 0–1 pins and a `.subckt`-body resistor
+edge case (D3 work).
+
+### Added
+
+- 2 pytest regression tests covering both D2 fixes
+  (`test_modelless_bjt_round_trip`, `test_instname_prefix_fix_for_non_spice_letter`).
+
 ## [0.3.7] — 2026-05-19
 
 ### Fixed (C5 false-positives, subckt-related)

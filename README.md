@@ -211,12 +211,12 @@ parser warning.
 Current `.asc → netlist → .asc` round-trip pass rate on real-world
 corpora (component count preserved):
 
-| Source | Pass rate (100 samples) |
+| Source | Pass rate |
 |---|---|
-| LTspice "Applications" examples | 100% |
-| LTspice "Examples" examples     | 99%  |
-| Textbook circuits (training-adjacent) | 100% |
-| GitHub repos (unseen)            | 98%  |
+| LTspice "Applications" examples (4099 files) | 100%  |
+| LTspice "Examples" examples (100 samples)    |  99%  |
+| Textbook circuits (training-adjacent, 28 files) | 100%  |
+| GitHub repos (unseen, 720 files)              | 99.6% |
 
 The schemdraw round-trip `netlist → schemdraw script → netlist` runs
 at 80–100% on the same corpus (lower because schemdraw's element

@@ -211,6 +211,92 @@ TEXT 0 100 Left 2 !.tran 1m
     )
 
 
+def test_modelless_bjt_round_trip():
+    """Regression for v0.3.8 D2 fix: BJT symbol without SYMATTR Value must
+    survive a .asc -> netlist -> .asc round-trip. Previously the extractor
+    emitted ``Q1 N001 N002 0`` (4 tokens, no model -- LTspice allows this
+    for npn/pnp via the built-in default model), and NetlistParser silently
+    dropped the 4-token form because it required len(parts) >= 5.
+    """
+    asc = """Version 4
+SHEET 1 880 680
+WIRE 64 -16 64 -48
+WIRE 64 96 64 64
+FLAG 64 96 0
+FLAG 64 -48 VCC
+SYMBOL npn 32 0 R0
+SYMATTR InstName Q1
+TEXT 0 200 Left 2 !.op
+"""
+    parser = AscParser()
+    parser.parse_string(asc)
+    netlist = NetlistExtractor(parser).extract()
+    # Confirm the trigger condition: BJT line has no model token (4 tokens).
+    q_lines = [l for l in netlist.split("\n") if l.strip().upper().startswith("Q")]
+    assert q_lines, "expected Q line in extracted netlist"
+    assert len(q_lines[0].split()) == 4, (
+        f"expected modelless 4-token Q line, got: {q_lines[0]!r}"
+    )
+
+    asc2 = NetlistToAsc().convert_string(netlist)
+    parser2 = AscParser()
+    parser2.parse_string(asc2)
+    netlist2 = NetlistExtractor(parser2).extract()
+    q_lines2 = [l for l in netlist2.split("\n") if l.strip().upper().startswith("Q")]
+    assert q_lines2, (
+        f"BJT dropped on round-trip; netlist2 was:\n{netlist2}"
+    )
+
+
+def test_instname_prefix_fix_for_non_spice_letter():
+    """Regression for v0.3.8 D2 fix: a user-given InstName starting with a
+    letter that is not a SPICE prefix (e.g. ``NTC`` on a ``res`` symbol)
+    must be prefix-fixed to ``R§NTC`` so the netlist line begins with R
+    and round-trips. Previously the gate ``name[0] in _SPICE_PREFIXES``
+    excluded ``N`` (not a SPICE prefix for res) and the component was
+    emitted as ``NTC ...`` -- which NetlistParser rejected (N is not a
+    known device prefix).
+    """
+    asc = """Version 4
+SHEET 1 880 680
+WIRE 64 16 64 -16
+WIRE 64 128 64 96
+FLAG 64 128 0
+FLAG 64 -16 IN
+SYMBOL res 48 16 R0
+SYMATTR InstName NTC
+SYMATTR Value R={ if(time<1m, 5, 0.5) }
+TEXT 0 200 Left 2 !.tran 2m
+"""
+    parser = AscParser()
+    parser.parse_string(asc)
+    netlist = NetlistExtractor(parser).extract()
+    # The prefix-fix must rename NTC -> R§NTC so the netlist line starts
+    # with R (a valid SPICE resistor prefix).
+    nl_lower = netlist.lower()
+    assert "r§ntc" in nl_lower or "rntc" in nl_lower, (
+        f"InstName NTC not prefix-fixed to R-prefix form; netlist:\n{netlist}"
+    )
+
+    n_components_src = sum(
+        1 for line in netlist.split("\n")
+        if line.strip() and line.strip()[0].isalpha() and line.strip()[0] not in ".*"
+    )
+
+    asc2 = NetlistToAsc().convert_string(netlist)
+    parser2 = AscParser()
+    parser2.parse_string(asc2)
+    netlist2 = NetlistExtractor(parser2).extract()
+    n_components_rt = sum(
+        1 for line in netlist2.split("\n")
+        if line.strip() and line.strip()[0].isalpha() and line.strip()[0] not in ".*"
+    )
+    assert n_components_src == n_components_rt, (
+        f"component count drifted: {n_components_src} -> {n_components_rt}\n"
+        f"netlist:  {netlist}\nnetlist2: {netlist2}"
+    )
+
+
 def test_subckt_body_round_trip():
     """.subckt body must survive .cir -> .asc -> .cir byte-equal.
 

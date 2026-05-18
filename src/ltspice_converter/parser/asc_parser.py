@@ -1288,12 +1288,18 @@ class NetlistExtractor:
         # native simulator: probes/measurements that referenced the original
         # name lost track. The § form is what `LTspice.exe -netlist X.asc`
         # writes when InstName/symbol-prefix disagree.
-        _SPICE_PREFIXES = {'R', 'C', 'L', 'V', 'I', 'D', 'Q', 'M', 'J',
-                           'E', 'G', 'F', 'H', 'B', 'S', 'T', 'U', 'A', 'K'}
+        # Prefix-fix when InstName's first letter does not match the symbol's
+        # SPICE prefix. Examples:
+        #   ind2 symbol  + InstName "T3a"  → "L§T3a"  (T is another SPICE prefix)
+        #   res  symbol  + InstName "NTC"  → "R§NTC"  (N is not a SPICE prefix
+        #                                              for res, but LTspice still
+        #                                              prefix-fixes user-given
+        #                                              names that disagree)
+        # The earlier "name[0] in _SPICE_PREFIXES" gate missed the second case
+        # and silently dropped the component on the netlist->asc round-trip.
         if (prefix and prefix != 'X'
                 and name and len(name) >= 2
                 and name[0].isalpha()
-                and name[0].upper() in _SPICE_PREFIXES
                 and name[0].upper() != prefix.upper()):
             new_name = f'{prefix}§{name}'
             self._name_remap[name] = new_name
