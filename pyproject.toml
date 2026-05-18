@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ltspice-converter"
-version = "0.3.3"
+version = "0.3.4"
 description = "Convert LTspice schematic (.asc) and SPICE netlist (.cir) files to/from schemdraw Python scripts"
 readme = "README.md"
 license = "MIT"
@@ -38,6 +38,7 @@ Issues = "https://github.com/ksugahar/ltspice-converter/issues"
 
 [project.scripts]
 mcp-ltspice = "ltspice_converter.mcp_server:main"
+ltspice-convert = "ltspice_converter.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

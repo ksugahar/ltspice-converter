@@ -28,4 +28,4 @@ __all__ = [
     "asc_to_netlist",
 ]
 
-__version__ = "0.3.3"
+__version__ = "0.3.4"

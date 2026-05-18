@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] — 2026-05-19
+
+### Added
+
+- **`ltspice-convert` CLI** (new console script). End users can now
+  drive every conversion from the shell without writing Python.
+
+  - `ltspice-convert input.asc -o output.cir` -- single-file convert,
+    with target format inferred from `-o` or from the input
+    extension.
+  - `ltspice-convert *.asc -o build/ --to cir` -- batch into a
+    directory.
+  - `ltspice-convert --check input.asc` -- round-trip lint mode that
+    reports component-count drift, GND-pin position drift, and
+    SYMBOLs whose `.asy` cannot be located. `--strict` promotes any
+    warning to exit code 1.
+  - `ltspice-convert --info input.asc [--json]` -- summary of a
+    schematic / netlist (component count by type, symbol kinds,
+    `.asy` resolution rate, `.subckt` blocks).
+  - `--asy-dir DIR` (repeatable) and `LTSPICE_ASY_SEARCH_PATH` env
+    var both feed the third-party symbol search path; CLI flag wins.
+
+- **GitHub Actions reusable workflow**:
+  [`docs/example-workflows/asc-check.yml`](docs/example-workflows/asc-check.yml)
+  can be copied into any repository that stores `.asc` files to lint
+  them on every PR with `ltspice-convert --check --strict`.
+
+- 15 new pytest tests covering convert / check / info / batch /
+  error paths.
+
 ## [0.3.3] — 2026-05-19
 
 ### Added

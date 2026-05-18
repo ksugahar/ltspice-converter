@@ -48,6 +48,66 @@ asc_text = lc.netlist_to_asc(netlist)
 recovered_netlist = lc.asc_to_netlist(asc_text)
 ```
 
+## Command-line tool
+
+Installing the package wires up the `ltspice-convert` console script.
+No Python knowledge needed.
+
+### Conversion
+
+```bash
+# Single file (target inferred from -o or the "opposite" of input)
+ltspice-convert input.asc -o output.cir
+ltspice-convert input.cir -o output.asc
+ltspice-convert input.cir -o output.py        # netlist -> schemdraw script
+
+# Auto output path (same dir, sensible default extension)
+ltspice-convert input.asc                     # writes input.cir alongside
+ltspice-convert input.asc --to py             # writes input.py alongside
+
+# Batch (output is a directory; --to picks target format)
+ltspice-convert *.asc -o build/ --to cir
+```
+
+### Round-trip check (lint mode)
+
+`--check` reads a file, runs it through the full round-trip, and
+reports drift / `.asy` resolution gaps. Use `--strict` to make any
+warning exit non-zero -- handy in CI.
+
+```bash
+ltspice-convert --check input.asc
+# -> PASS / PASS (with warnings) / FAIL  on stdout, with [ok]/[warn] details
+
+ltspice-convert --check --strict *.asc        # exit 1 if any warning
+```
+
+### Info / stats
+
+```bash
+ltspice-convert --info input.asc              # human-readable
+ltspice-convert --info --json input.asc       # machine-readable JSON
+```
+
+### Third-party `.asy` libraries
+
+`--asy-dir` (repeatable) is equivalent to setting the
+`LTSPICE_ASY_SEARCH_PATH` env var:
+
+```bash
+ltspice-convert --asy-dir /path/to/MyLib/sym input.asc -o out.cir
+ltspice-convert --asy-dir A --asy-dir B input.asc -o out.cir
+```
+
+CLI flags take priority over the env var; both can be combined.
+
+### CI / GitHub Actions
+
+Run `--check --strict` on every PR that touches `.asc` files. See
+[`docs/example-workflows/asc-check.yml`](docs/example-workflows/asc-check.yml)
+for a reusable workflow template you can copy into a circuit-design
+repository.
+
 ## MCP server
 
 Install with the `[mcp]` extra and add to your MCP client config:
