@@ -44,7 +44,9 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from . import __version__, conversion
-from .parser.asc_parser import AscParser, NetlistExtractor, AsyParser
+from .parser.asc_parser import (
+    AscParser, NetlistExtractor, AsyParser, SYMBOL_TO_SPICE,
+)
 
 
 # =============================================================================
@@ -256,11 +258,20 @@ def _check_one(path: Path, asy_search_dirs: List[str]) -> Tuple[List[str], List[
         nl1 = NetlistExtractor(ap).extract()
         n1 = _count_components(nl1)
         info.append(f'asc -> netlist: {n1} components extracted')
-        # Probe each SYMBOL for .asy availability
+        # Probe each SYMBOL for .asy availability — but only flag those
+        # that would actually need it. Standard symbols (res/cap/ind/
+        # voltage/diode/Q/M/J/...) have hardcoded pin offsets in
+        # TERMINAL_OFFSETS_* tables, so they round-trip correctly even
+        # when no .asy file is available (e.g. on Linux CI without
+        # LTspice installed). Only multi-pin vendor symbols whose SPICE
+        # prefix would fall back to "X" need .asy for topology.
         unresolved = []
         for sym in ap.symbols:
             kind = sym.symbol_type
             if not kind:
+                continue
+            # Standard LTspice symbol → skip the warning
+            if SYMBOL_TO_SPICE.get(kind.lower()) is not None:
                 continue
             offs = AsyParser.get_terminal_offsets(
                 kind, sym.rotation or 'R0',
@@ -270,7 +281,7 @@ def _check_one(path: Path, asy_search_dirs: List[str]) -> Tuple[List[str], List[
                 unresolved.append(f'{sym.inst_name or "?"} ({kind})')
         if unresolved:
             warn.append(
-                f'{len(unresolved)} symbol(s) with no resolvable .asy '
+                f'{len(unresolved)} vendor symbol(s) with no resolvable .asy '
                 f'(topology may drift on round-trip): '
                 + ', '.join(unresolved[:5])
                 + (' ...' if len(unresolved) > 5 else '')
@@ -384,9 +395,14 @@ def _info_one(path: Path, asy_search_dirs: List[str]) -> dict:
         out['component_count'] = sum(comp_types.values())
         out['component_types'] = dict(comp_types)
         out['symbol_kinds'] = dict(sym_kinds.most_common())
-        # Symbol resolution rate
+        # Symbol resolution rate.
+        # Count standard symbols (hardcoded pin tables) AND .asy-resolved
+        # symbols as "resolved" — both round-trip correctly.
         resolved = 0
         for sym in ap.symbols:
+            if SYMBOL_TO_SPICE.get((sym.symbol_type or '').lower()) is not None:
+                resolved += 1
+                continue
             offs = AsyParser.get_terminal_offsets(
                 sym.symbol_type, sym.rotation or 'R0',
                 search_dirs=[Path(d) for d in asy_search_dirs] or None,
