@@ -331,8 +331,16 @@ class CirToSchemdraw:
             safe_node = _sanitize_label(node)
             self.lines.append(f"    d.add(elm.Annotate().at((0, -3)).label('NODE:{safe_node}').color('white'))")
 
+        # If the circuit ended up with no drawn elements (.asc had only
+        # directives / TEXT blocks, no SYMBOLs), schemdraw cannot compute
+        # axis bounds and `d.save()` raises `ValueError: Axis limits cannot
+        # be NaN or Inf`. Add a single invisible Line to give matplotlib a
+        # finite bounding box.
         self.lines.extend([
             '',
+            "    # Guard against empty drawings (no SYMBOLs in source .asc)",
+            "    if not any(s.segments for s in d.elements):",
+            "        d.add(elm.Line().right().length(d.unit).color('white'))",
             f"    d.save('{safe_name}.pdf')",
             f"    print('Saved: {safe_name}.pdf')",
         ])
@@ -426,8 +434,18 @@ class CirToSchemdraw:
                     placed.add(pc.name)
                     last_var = pvar
                 self.lines.append(f"    d.pop()")
-                # Move to the end of the parallel group
-                self.lines.append(f"    d.add(elm.Line().right().at({last_var}.end).length(0))")
+                # Move past the parallel group. `{last_var}.end` is only
+                # defined on 2-terminal elements (Resistor, Capacitor, ...).
+                # For multi-pin elements (Opamp, RBox, BJT, ...), there is
+                # no `.end` anchor, so we fall back to `d.move()` which is
+                # safe regardless of the element type.
+                self.lines.append(
+                    f"    _e = getattr({last_var}, 'end', None)\n"
+                    f"    if _e is not None:\n"
+                    f"        d.add(elm.Line().right().at(_e).length(0))\n"
+                    f"    else:\n"
+                    f"        d.move(d.unit, 0)"
+                )
             else:
                 self.lines.append(f"    {var} = d.add({elem}.right().label('{label}'))")
                 placed.add(comp.name)

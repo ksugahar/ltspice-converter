@@ -311,10 +311,13 @@ SYMBOL_TO_SPICE = {
     'polcap': 'C',
     'voltage': 'V', 'current': 'I', 'battery': 'V',
     'diode': 'D', 'schottky': 'D', 'zener': 'D', 'led': 'D',
-    'varactor': 'D', 'tvs': 'D',
+    'varactor': 'D', 'tvs': 'D', 'smdiode': 'D',
     'npn': 'Q', 'pnp': 'Q',
+    'npn3': 'Q', 'pnp3': 'Q', 'npn4': 'Q', 'pnp4': 'Q',  # substrate variants
     'nmos': 'M', 'pmos': 'M',
+    'nmos4': 'M', 'pmos4': 'M',                          # 4-pin (with body)
     'njf': 'J', 'pjf': 'J',
+    'njf4': 'J', 'pjf4': 'J',
     'nigbt': 'Z',
     'e': 'E', 'e2': 'E', 'g': 'G', 'g2': 'G',
     'f': 'F', 'h': 'H',
@@ -341,6 +344,8 @@ TWO_TERMINAL_SYMBOLS = {
 # 3端子素子シンボルタイプ
 THREE_TERMINAL_SYMBOLS = {
     'npn', 'pnp', 'nmos', 'pmos', 'njf', 'pjf', 'nigbt',
+    'npn3', 'pnp3', 'npn4', 'pnp4',
+    'nmos4', 'pmos4', 'njf4', 'pjf4',
 }
 
 # 受動素子のみ（旧定義 — 後方互換）

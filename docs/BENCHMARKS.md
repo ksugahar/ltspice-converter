@@ -37,6 +37,24 @@ upper bound.
 The script is `bench/baseline.py` (gitignored; depends on a
 LAB-private corpus path).
 
+## Headline results — v0.2.1 (after Phase A: A1-A4)
+
+### schemdraw script execution (new check)
+
+| Source | Failures (v0.2.0) | Failures (v0.2.1) |
+|---|---|---|
+| 150 samples (50 each of LTspice examples / applications / github_repos) | **7 / 150** | **0 / 150** |
+
+Three classes of bug fixed in Phase A:
+- `AttributeError: 'X.end' not defined` when an Opamp/multi-pin element
+  is the last in a parallel group (now falls back to `d.move()`).
+- `ValueError: Axis limits cannot be NaN or Inf` on empty drawings (now
+  emits an invisible guard line).
+- 4-pin BJT substrate variants (`npn3`, `pnp4`) were re-emitted as
+  `SYMBOL <Q-model-name>` instead of `SYMBOL npn3` (model name was
+  being confused with symbol kind). Fixed by extending `SYMBOL_TO_SPICE`
+  to recognise substrate variants.
+
 ## Headline results — v0.2.0 (after P1 + P4)
 
 ### `.asc → netlist → .asc` round-trip (component count)
