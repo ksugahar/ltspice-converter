@@ -336,13 +336,24 @@ class CirToSchemdraw:
         # axis bounds and `d.save()` raises `ValueError: Axis limits cannot
         # be NaN or Inf`. Add a single invisible Line to give matplotlib a
         # finite bounding box.
+        # Save: prefer .pdf, fall back to .svg if the backend (e.g. SVG-only
+        # on headless Linux without matplotlib) does not support PDF.
         self.lines.extend([
             '',
             "    # Guard against empty drawings (no SYMBOLs in source .asc)",
             "    if not any(s.segments for s in d.elements):",
             "        d.add(elm.Line().right().length(d.unit).color('white'))",
-            f"    d.save('{safe_name}.pdf')",
-            f"    print('Saved: {safe_name}.pdf')",
+            f"    _saved = False",
+            f"    for _ext in ('.pdf', '.svg'):",
+            f"        try:",
+            f"            d.save(f'{safe_name}' + _ext)",
+            f"            print(f'Saved: {safe_name}' + _ext)",
+            f"            _saved = True",
+            f"            break",
+            f"        except (ValueError, NotImplementedError):",
+            f"            continue",
+            f"    if not _saved:",
+            f"        print('Drawing skipped (no usable schemdraw backend)')",
         ])
 
     def _emit_circuit(self, sources, series, shunts, three_terms, others, parallel_groups):
