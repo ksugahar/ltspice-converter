@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.9] — 2026-05-19
+
+### Added (E1: MCP lint + stats tools)
+
+The MCP server now exposes the same `--check` (lint) and `--info`
+(stats) logic that the CLI has, so AI agents (Claude Code, Cursor)
+can validate their own generated SPICE in-conversation without
+shelling out:
+
+- **`check_circuit(text, fmt, asy_search_dirs?)`** — round-trip drift
+  check + static netlist analysis (duplicate instance names, floating
+  nodes, orphan / undefined `.model` and `.subckt` references,
+  undefined `{PARAM}` references, unparsed lines).  Returns
+  `{ok: bool, info: [..], warnings: [..]}`.
+- **`info_circuit(text, fmt, asy_search_dirs?)`** — component-type
+  counts, symbol kinds, `.subckt` block count, `.asy` resolution rate.
+- `netlist_to_asc` and `asc_to_netlist` gain an `asy_search_dirs`
+  argument so agents can route vendor-symbol resolution
+  (LTspiceControlLibrary etc.) through MCP too.
+
+Total MCP tools: **6** (was 4).  Typical agent loop:
+generate → `check_circuit` → fix if warnings → re-check → ship.
+
+### Refactored (internal)
+
+Split the file-based `_check_one` / `_info_one` into text-based
+`check_text` / `info_text` core functions; the file-based wrappers
+now delegate.  Both the CLI and the MCP server use the text-based
+core, eliminating duplication.
+
+### README
+
+Five polish items:
+- CI / Python-version / MIT-license badges at top
+- "What's new in v0.3.9" link to CHANGELOG
+- v0.3.4 example pin bumped to v0.3.9
+- MCP server section gains motivation paragraph + 6-tool table
+- "Supported elements" expanded with B / E / G / F / H / S / T / K / U
+  (the rows were always supported, just not listed)
+
+### Added (tests)
+
+4 new pytest tests for E1: `check_text` clean case, `check_text`
+duplicate-instance warning, `info_text` per-class counts,
+`mcp_tools_registered` (all 6 tools present).
+
 ## [0.3.8] — 2026-05-19
 
 ### Fixed (D2: two round-trip-drop bugs surfaced by GitHub corpus)

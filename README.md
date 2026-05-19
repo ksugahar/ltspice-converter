@@ -1,5 +1,14 @@
 # ltspice-converter
 
+[![CI](https://github.com/ksugahar/ltspice-converter/actions/workflows/test.yml/badge.svg)](https://github.com/ksugahar/ltspice-converter/actions/workflows/test.yml)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://github.com/ksugahar/ltspice-converter)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+What's new in [v0.3.9](CHANGELOG.md): MCP server gains `check_circuit`
+and `info_circuit` tools so AI agents can lint their own generated
+SPICE without shelling out.  v0.3.8 fixed two round-trip-drop bugs
+(GitHub-corpus pass rate 96.7 % → **99.6 %**).
+
 Convert between three circuit representations:
 
 ```
@@ -28,7 +37,7 @@ pip install "ltspice-converter[mcp] @ git+https://github.com/ksugahar/ltspice-co
 Pinning a specific version:
 
 ```bash
-pip install git+https://github.com/ksugahar/ltspice-converter@v0.3.4
+pip install git+https://github.com/ksugahar/ltspice-converter@v0.3.9
 ```
 
 For development:
@@ -140,6 +149,11 @@ repository.
 
 ## MCP server
 
+For AI agents (Claude Code, Cursor) that author or refactor SPICE:
+the MCP server lets the agent convert between formats AND lint its
+own generated netlists in the same conversation, without shelling out
+to a CLI.
+
 Install with the `[mcp]` extra and add to your MCP client config:
 
 ```json
@@ -152,8 +166,19 @@ Install with the `[mcp]` extra and add to your MCP client config:
 }
 ```
 
-Exposes four tools: `netlist_to_schemdraw`, `schemdraw_to_netlist`,
-`netlist_to_asc`, `asc_to_netlist`.
+Exposes six tools:
+
+| Tool | Purpose |
+|---|---|
+| `netlist_to_schemdraw(netlist, name)` | SPICE → schemdraw Python script |
+| `schemdraw_to_netlist(script, title)` | schemdraw script → SPICE |
+| `netlist_to_asc(netlist, asy_search_dirs?)` | SPICE → LTspice `.asc` |
+| `asc_to_netlist(asc_text, use_ltspice?, asy_search_dirs?)` | LTspice `.asc` → SPICE |
+| `check_circuit(text, fmt, asy_search_dirs?)` | Lint: round-trip drift + static netlist checks. Returns `{ok, info, warnings}`. |
+| `info_circuit(text, fmt, asy_search_dirs?)` | Summary: component counts, symbol kinds, `.subckt` blocks. |
+
+Typical agent loop: generate netlist → `check_circuit(..., 'cir')` →
+if `warnings` non-empty, fix and re-check → only ship when clean.
 
 ## Supported elements
 
@@ -164,13 +189,21 @@ Exposes four tools: `netlist_to_schemdraw`, `schemdraw_to_netlist`,
 | L     | Inductor  | ind, ind2      |
 | V     | SourceV   | voltage        |
 | I     | SourceI   | current        |
-| D     | Diode     | diode, zener   |
-| Q (NPN/PNP) | BjtNpn / BjtPnp | npn, pnp |
-| M (NMOS/PMOS) | NFet / PFet | nmos, pmos |
-| J (NJF/PJF) | JFetN / JFetP | njf, pjf |
-| X (opamp) | Opamp | opamp, opamp2 |
+| D     | Diode     | diode, zener, schottky, varactor, tvs |
+| Q (NPN/PNP, 3- or 4-pin substrate) | BjtNpn / BjtPnp | npn, pnp, npn3, pnp3, npn4, pnp4 |
+| M (NMOS/PMOS, 3- or 4-pin substrate) | NFet / PFet | nmos, pmos, nmos4, pmos4 |
+| J (NJF/PJF, 3- or 4-pin substrate) | JFetN / JFetP | njf, pjf, njf4, pjf4 |
+| B (behavioral source) | — | bv, bi, bi2 |
+| E, G (VCVS, VCCS) | — | e, e2, g, g2 |
+| F, H (CCCS, CCVS) | — | f, h |
+| S (voltage-controlled switch) | — | sw |
+| T (transmission line) | — | tline |
+| K (mutual inductance, directive) | — | — |
+| X (subcircuit / opamp / IC) | Opamp | opamp, opamp2, lt1018, ... and arbitrary multi-pin vendor symbols |
+| U (digital flop / gate) | — | Digital\\\\srflop, Comparators\\\\..., ... |
 
-`.ac`, `.tran`, `.op`, `.dc` directives are preserved through the round-trip.
+`.ac`, `.tran`, `.op`, `.dc`, `.param`, `.model`, `.subckt`/`.ends`
+directives are preserved through the round-trip.
 
 ## `.subckt` round-trip
 

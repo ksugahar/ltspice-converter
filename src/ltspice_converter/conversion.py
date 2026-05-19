@@ -40,21 +40,26 @@ def schemdraw_to_netlist(script: str, title: str = "circuit") -> str:
     return schemdraw_script_to_cir(script, title)
 
 
-def netlist_to_asc(netlist: str) -> str:
+def netlist_to_asc(netlist: str,
+                   asy_search_dirs=None) -> str:
     """Convert a SPICE netlist (.cir) to an LTspice schematic (.asc) text.
 
     Args:
         netlist: SPICE netlist text.
+        asy_search_dirs: optional list of directory paths to search for
+            vendor `.asy` symbol files. Combined with the
+            ``LTSPICE_ASY_SEARCH_PATH`` env var.
 
     Returns:
         LTspice .asc schematic text.
     """
     from .parser.netlist_to_asc import NetlistToAsc
-    converter = NetlistToAsc()
+    converter = NetlistToAsc(asy_search_dirs=asy_search_dirs)
     return converter.convert_string(netlist)
 
 
-def asc_to_netlist(asc_text: str, use_ltspice: bool = False) -> str:
+def asc_to_netlist(asc_text: str, use_ltspice: bool = False,
+                   asy_search_dirs=None) -> str:
     """Convert an LTspice schematic (.asc) text to a SPICE netlist.
 
     Args:
@@ -63,6 +68,8 @@ def asc_to_netlist(asc_text: str, use_ltspice: bool = False) -> str:
             -netlist as the backend (canonical anonymous-node numbering).
             Default False (pure-Python NetlistExtractor, no external
             dependency, machine-reproducible).
+        asy_search_dirs: optional list of directory paths for vendor
+            `.asy` symbol files.
 
     Returns:
         SPICE netlist (.cir) text.
@@ -77,7 +84,12 @@ def asc_to_netlist(asc_text: str, use_ltspice: bool = False) -> str:
         tmp.write(asc_text)
         tmp_path = tmp.name
     try:
-        return _impl(tmp_path, prefer_ltspice=use_ltspice)
+        _dirs = (
+            [_Path(d) for d in asy_search_dirs]
+            if asy_search_dirs else None
+        )
+        return _impl(tmp_path, prefer_ltspice=use_ltspice,
+                     asy_search_dirs=_dirs)
     finally:
         _Path(tmp_path).unlink(missing_ok=True)
 

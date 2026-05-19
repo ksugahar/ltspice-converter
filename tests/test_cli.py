@@ -347,3 +347,67 @@ def test_check_undefined_subckt_warning_when_truly_missing(tmp_path):
     r = run_cli("--check", str(cir))
     assert "MY_CUSTOM_BLOCK" in r.stdout, \
         f"expected missing subckt to be reported, got: {r.stdout}"
+
+
+# =============================================================================
+# E1: text-based check/info entry points (also used by the MCP server)
+# =============================================================================
+
+
+def test_check_text_clean_netlist():
+    """check_text() returns no warnings for a well-formed netlist."""
+    from ltspice_converter.cli import check_text
+    netlist = (
+        "* RC Lowpass\n"
+        "V1 in 0 AC 1\n"
+        "R1 in out 1k\n"
+        "C1 out 0 1u\n"
+        ".ac dec 20 1 100k\n"
+        ".end\n"
+    )
+    info, warn = check_text(netlist, "cir")
+    assert warn == [], f"unexpected warnings on clean netlist: {warn}"
+    assert any("3 components" in m for m in info), info
+
+
+def test_check_text_flags_duplicate_instance():
+    """check_text() surfaces a duplicate-instance C5 lint warning."""
+    from ltspice_converter.cli import check_text
+    netlist = (
+        "V1 in 0 AC 1\n"
+        "R1 in out 1k\n"
+        "R1 out 0 2k\n"   # duplicate
+        ".end\n"
+    )
+    _info, warn = check_text(netlist, "cir")
+    assert any("duplicate" in w.lower() for w in warn), warn
+
+
+def test_info_text_counts_by_class():
+    """info_text() returns per-class component counts for a netlist."""
+    from ltspice_converter.cli import info_text
+    netlist = (
+        "V1 in 0 AC 1\n"
+        "R1 in m 1k\n"
+        "R2 m out 1k\n"
+        "C1 out 0 1u\n"
+        ".end\n"
+    )
+    out = info_text(netlist, "cir")
+    assert out["component_count"] == 4
+    assert out["component_types"] == {"V": 1, "R": 2, "C": 1}
+
+
+def test_mcp_tools_registered():
+    """The mcp_server module exposes all six tools (4 conversion + 2 lint/info)."""
+    from ltspice_converter import mcp_server
+    names = {
+        t.name if hasattr(t, "name") else getattr(t, "fn", t).__name__
+        for t in mcp_server.mcp._tool_manager._tools.values()
+    }
+    expected = {
+        "netlist_to_schemdraw", "schemdraw_to_netlist",
+        "netlist_to_asc", "asc_to_netlist",
+        "check_circuit", "info_circuit",
+    }
+    assert expected <= names, f"missing MCP tools: {expected - names}"

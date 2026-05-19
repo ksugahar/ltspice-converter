@@ -561,16 +561,30 @@ def _looks_like_standard_model(name: str) -> bool:
     return False
 
 
-def _check_one(path: Path, asy_search_dirs: List[str]) -> Tuple[List[str], List[str]]:
-    """Return (info_msgs, warning_msgs) for path."""
+def check_text(src_text: str, src_fmt: str,
+                asy_search_dirs: Optional[List[str]] = None
+                ) -> Tuple[List[str], List[str]]:
+    """Run --check logic on in-memory text (no path / no file I/O).
+
+    Returns (info_msgs, warning_msgs). Used by both the CLI ``--check``
+    command and the MCP ``check_netlist`` / ``check_asc`` tools so AI
+    agents can lint generated SPICE without touching the filesystem.
+
+    Args:
+        src_text: file content as text
+        src_fmt: ``'asc'``, ``'cir'``, or ``'py'`` (caller's responsibility
+            to detect; CLI uses :func:`detect_format`)
+        asy_search_dirs: optional list of directory paths for vendor `.asy`
+            symbol resolution (combined with ``LTSPICE_ASY_SEARCH_PATH``
+            env var by the AscParser/NetlistToAsc layer).
+    """
     info: List[str] = []
     warn: List[str] = []
-    src_fmt = detect_format(path)
-    if src_fmt is None:
-        warn.append(f'unknown source extension {path.suffix!r}')
+    if asy_search_dirs is None:
+        asy_search_dirs = []
+    if src_fmt not in ('asc', 'cir', 'py'):
+        warn.append(f'unknown source format {src_fmt!r}')
         return info, warn
-
-    src_text = read_text(path)
 
     # Initial extraction
     if src_fmt == 'asc':
@@ -657,12 +671,20 @@ def _check_one(path: Path, asy_search_dirs: List[str]) -> Tuple[List[str], List[
     else:  # py
         # Just compile-check the script
         try:
-            compile(src_text, str(path), 'exec')
+            compile(src_text, '<schemdraw>', 'exec')
             info.append('schemdraw script compiles OK')
         except SyntaxError as e:
             warn.append(f'script does not compile: {e}')
 
     return info, warn
+
+
+def _check_one(path: Path, asy_search_dirs: List[str]) -> Tuple[List[str], List[str]]:
+    """File-based wrapper around :func:`check_text` (used by the CLI)."""
+    src_fmt = detect_format(path)
+    if src_fmt is None:
+        return [], [f'unknown source extension {path.suffix!r}']
+    return check_text(read_text(path), src_fmt, asy_search_dirs)
 
 
 def cmd_check(args) -> int:
@@ -703,14 +725,21 @@ def cmd_check(args) -> int:
 # Mode: info
 # =============================================================================
 
-def _info_one(path: Path, asy_search_dirs: List[str]) -> dict:
-    src_fmt = detect_format(path)
-    if src_fmt is None:
-        return {'path': str(path), 'error': f'unknown extension {path.suffix!r}'}
+def info_text(src_text: str, src_fmt: str,
+              asy_search_dirs: Optional[List[str]] = None) -> dict:
+    """Run --info logic on in-memory text. Used by both the CLI and MCP.
 
-    src_text = read_text(path)
+    Args:
+        src_text: file content as text
+        src_fmt: ``'asc'``, ``'cir'``, or ``'py'``
+        asy_search_dirs: optional list of vendor `.asy` search dirs
+    """
+    if asy_search_dirs is None:
+        asy_search_dirs = []
+    if src_fmt not in ('asc', 'cir', 'py'):
+        return {'error': f'unknown source format {src_fmt!r}'}
+
     out: dict = {
-        'path': str(path),
         'format': src_fmt,
         'size_bytes': len(src_text),
     }
@@ -760,6 +789,16 @@ def _info_one(path: Path, asy_search_dirs: List[str]) -> dict:
         out['component_types'] = dict(comp_types)
         out['subckt_blocks'] = src_text.lower().count('.subckt')
 
+    return out
+
+
+def _info_one(path: Path, asy_search_dirs: List[str]) -> dict:
+    """File-based wrapper around :func:`info_text` (used by the CLI)."""
+    src_fmt = detect_format(path)
+    if src_fmt is None:
+        return {'path': str(path), 'error': f'unknown extension {path.suffix!r}'}
+    out = info_text(read_text(path), src_fmt, asy_search_dirs)
+    out['path'] = str(path)
     return out
 
 
