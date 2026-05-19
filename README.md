@@ -4,10 +4,11 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://github.com/ksugahar/ltspice-converter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-What's new in [v0.3.9](CHANGELOG.md): MCP server gains `check_circuit`
-and `info_circuit` tools so AI agents can lint their own generated
-SPICE without shelling out.  v0.3.8 fixed two round-trip-drop bugs
-(GitHub-corpus pass rate 96.7 % → **99.6 %**).
+What's new in [v0.3.10](CHANGELOG.md): two more round-trip-drop bugs
+fixed (off-by-one `@sym` hint, 1-pin X dropped) -- **100 %** pass rate
+on all three real-world corpora now (GitHub repos / LTspice
+Applications / LTspice Examples).  v0.3.9 added `check_circuit` /
+`info_circuit` MCP tools.
 
 Convert between three circuit representations:
 
@@ -37,7 +38,7 @@ pip install "ltspice-converter[mcp] @ git+https://github.com/ksugahar/ltspice-co
 Pinning a specific version:
 
 ```bash
-pip install git+https://github.com/ksugahar/ltspice-converter@v0.3.9
+pip install git+https://github.com/ksugahar/ltspice-converter@v0.3.10
 ```
 
 For development:
@@ -246,10 +247,10 @@ corpora (component count preserved):
 
 | Source | Pass rate |
 |---|---|
-| LTspice "Applications" examples (4099 files) | 100%  |
-| LTspice "Examples" examples (100 samples)    |  99%  |
-| Textbook circuits (training-adjacent, 28 files) | 100%  |
-| GitHub repos (unseen, 720 files)              | 99.6% |
+| LTspice "Applications" examples (4099 files) | 100% |
+| LTspice "Examples" examples (100 samples)    | 100% |
+| Textbook circuits (training-adjacent, 28 files) | 100% |
+| GitHub repos (unseen, 720 files)              | 100% |
 
 The schemdraw round-trip `netlist → schemdraw script → netlist` runs
 at 80–100% on the same corpus (lower because schemdraw's element

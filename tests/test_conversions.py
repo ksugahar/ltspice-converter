@@ -297,6 +297,99 @@ TEXT 0 200 Left 2 !.tran 2m
     )
 
 
+def test_sym_hint_ordering_does_not_misclassify_next_component():
+    """Regression for v0.3.10 D3-1 fix: the ``* @sym=<kind>`` comment must
+    precede the component line it describes -- before this fix the
+    NetlistExtractor appended the hint AFTER the component, so the parser
+    (which associates hints with the NEXT component) tied every hint to
+    the wrong component, and the trailing hint orphaned onto an unrelated
+    next-class component (e.g. an ``Rload`` resistor receiving a
+    ``polcap`` hint, getting re-emitted as a SYMBOL polcap, and then
+    being dropped on re-extraction because polcap → C-prefix vs name R).
+    """
+    asc = """Version 4
+SHEET 1 880 680
+WIRE 0 -32 0 -64
+WIRE 0 80 0 48
+WIRE 256 -32 256 -64
+WIRE 256 80 256 48
+FLAG 0 80 0
+FLAG 0 -64 NA
+FLAG 256 80 0
+FLAG 256 -64 NB
+SYMBOL polcap 0 -32 R0
+SYMATTR InstName C1
+SYMATTR Value 100u
+SYMBOL res 240 -48 R0
+SYMATTR InstName Rload
+SYMATTR Value 100
+TEXT 0 200 Left 2 !.tran 1m
+"""
+    parser = AscParser()
+    parser.parse_string(asc)
+    netlist = NetlistExtractor(parser).extract()
+    n1 = sum(
+        1 for line in netlist.split("\n")
+        if line.strip() and line.strip()[0].isalpha() and line.strip()[0] not in ".*"
+    )
+    assert n1 == 2, f"expected 2 components extracted, got {n1}: {netlist!r}"
+
+    asc2 = NetlistToAsc().convert_string(netlist)
+    parser2 = AscParser()
+    parser2.parse_string(asc2)
+    netlist2 = NetlistExtractor(parser2).extract()
+    n2 = sum(
+        1 for line in netlist2.split("\n")
+        if line.strip() and line.strip()[0].isalpha() and line.strip()[0] not in ".*"
+    )
+    assert n1 == n2, (
+        f"component count drifted: {n1} -> {n2}; the polcap hint may have "
+        f"leaked onto Rload\nnetlist1:  {netlist}\nnetlist2:  {netlist2}"
+    )
+    # Specifically: Rload must remain an R-prefix line (not C§Rload).
+    rlines = [l for l in netlist2.split("\n") if "load" in l.lower()]
+    assert rlines, f"Rload missing from regenerated netlist:\n{netlist2}"
+    assert rlines[0].strip()[0].upper() == "R", (
+        f"Rload reclassified by orphan polcap hint: {rlines[0]!r}"
+    )
+
+
+def test_one_pin_x_subcircuit_round_trip():
+    """Regression for v0.3.10 D3-2 fix: a 1-pin X-prefix vendor symbol
+    (e.g. PowerSim CONST: 1 output pin, constant value) must round-trip.
+    Before this fix the extractor produced a 2-token line ``X10 N001``
+    (no subckt name), which NetlistParser dropped as too-short.
+    """
+    asc = """Version 4
+SHEET 1 880 680
+WIRE 0 0 0 -32
+FLAG 0 0 OUT
+SYMBOL CONST 0 -32 R0
+SYMATTR InstName X10
+SYMATTR SpiceLine K=42
+TEXT 0 200 Left 2 !.tran 1m
+"""
+    parser = AscParser()
+    parser.parse_string(asc)
+    netlist = NetlistExtractor(parser).extract()
+    x_lines = [l for l in netlist.split("\n") if l.strip().startswith("X10")]
+    assert x_lines, f"X10 missing from extracted netlist:\n{netlist}"
+    # Must include a subckt name token, not just ``X10 OUT``.
+    assert len(x_lines[0].split()) >= 3, (
+        f"1-pin X emitted with no subckt name: {x_lines[0]!r}; "
+        f"NetlistParser would drop this as too-short."
+    )
+
+    asc2 = NetlistToAsc().convert_string(netlist)
+    parser2 = AscParser()
+    parser2.parse_string(asc2)
+    netlist2 = NetlistExtractor(parser2).extract()
+    x_lines2 = [l for l in netlist2.split("\n") if l.strip().startswith("X10")]
+    assert x_lines2, (
+        f"1-pin X dropped on round-trip; netlist2:\n{netlist2}"
+    )
+
+
 def test_subckt_body_round_trip():
     """.subckt body must survive .cir -> .asc -> .cir byte-equal.
 

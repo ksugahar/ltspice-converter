@@ -993,8 +993,14 @@ class NetlistExtractor:
             spice_line = self._symbol_to_spice(sym)
             if not spice_line:
                 continue
-            lines.append(spice_line)
-            # Emit hint when symbol_type is non-default for its SPICE class.
+            # Emit hint BEFORE the component line. NetlistParser's
+            # ``pending_symbol_hint`` mechanism associates a ``* @sym=...``
+            # comment with the NEXT component, so the comment must come
+            # first.  Before v0.3.10 the hint was appended after the
+            # component, which silently shifted every hint by one and
+            # could orphan onto a SPICE class that doesn't match (e.g.
+            # a polcap hint orphaning onto an Rload resistor → re-emitted
+            # as a polcap, then dropped by the round-trip).
             first = spice_line.lstrip()[:1].upper()
             sym_type = (sym.symbol_type or '').lower()
             defaults = _DEFAULT_SYM_BY_PREFIX.get(first, set())
@@ -1002,6 +1008,7 @@ class NetlistExtractor:
                 # Avoid leaking proprietary names: only emit the bare symbol
                 # type string, no path or model.
                 lines.append(f'* @sym={sym.symbol_type}')
+            lines.append(spice_line)
 
         # Step 5: ディレクティブ (Improvement B & E)
         # TEXT directives in .asc use literal \n as line separator.
@@ -1373,8 +1380,16 @@ class NetlistExtractor:
                 return f'{name} {node1} {node2} {node3} {value}'.strip()
 
         elif len(terms) == 1:
-            # 1端子（電源ピン等） — スキップまたは接地
+            # 1端子（電源ピン、constant source 等）
             node1 = self._get_node_at(terms[0])
+            # X-prefixed → 1-pin subcircuit invocation (e.g. PowerSim CONST,
+            # 1-pin constant source). Emit the symbol kind as the subckt name
+            # so the round-trip preserves the component; without this, the
+            # extractor produces a 2-token line like ``X10 N031`` which
+            # NetlistParser drops as too-short.
+            if name and name[0].upper() == 'X':
+                sub_model = sym.spice_model or sym.symbol_type
+                return f'{name} {node1} {sub_model}'.strip()
             return f'{name} {node1} {value}'.strip()
 
         elif len(terms) == 2:

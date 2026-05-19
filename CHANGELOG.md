@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] — 2026-05-19
+
+### Fixed (D3: last 3 GitHub-corpus failures + a 1-fail Examples regression)
+
+Two distinct bugs surfaced by tracing the residual 3 failing files in
+the LAB GitHub `.asc` corpus.  Both stemmed from places where the
+extractor and parser disagreed on the canonical netlist line shape.
+
+- **D3-1 (off-by-one ``@sym=`` hint association)**: The
+  `NetlistExtractor` emitted the ``* @sym=<kind>`` variant hint
+  **after** the component line, but `NetlistParser` consumes the hint
+  via a ``pending_symbol_hint`` mechanism that ties it to the **next**
+  component.  Every hint was therefore associated with the wrong
+  component, and the trailing hint orphaned onto an unrelated next-class
+  component.  On CLLC_Openloop the trailing ``* @sym=polcap`` hint
+  attached to an ``Rload`` resistor → AscGenerator re-emitted it as a
+  SYMBOL polcap → on re-extraction the polcap (C-class) prefix
+  conflicted with the R-prefix name, so the v0.3.8 prefix-fix renamed
+  it to ``C§Rload`` and the round-trip count dropped.  Fix: emit the
+  hint **before** the component line (matches the parser's expectation
+  and matches LTspice's own convention of "annotation precedes the
+  thing it annotates").
+
+- **D3-2 (1-pin X-prefix vendor symbol dropped on round-trip)**:
+  PowerSim `CONST` (a 1-pin constant-source subcircuit) and similar
+  1-pin vendor symbols were emitted as 2-token lines like ``X10 N031``
+  -- no trailing subckt name.  `NetlistParser` then dropped them at
+  the ``len(parts) < 3`` guard.  Fix: in the 1-terminal emit branch,
+  when the SPICE prefix is X, append ``sym.spice_model or sym.symbol_type``
+  as the subckt name so the parser sees a complete X-statement.
+  TYPE2_FRA (1 file) + CLLC_Openloop + DAB_Openloop (2 X instances)
+  all now round-trip.
+
+### Performance
+
+Round-trip pass rate (component-count match) on three LAB-private
+corpora:
+
+| Corpus | 0.3.9 | 0.3.10 |
+|---|---|---|
+| GitHub repos (720 files) | 717/720 = 99.6 % | **720/720 = 100 %** (+0.4 pt) |
+| LTspice Examples (100 files) | 99/100 = 99.0 %  | **100/100 = 100 %** (+1 pt, same bug) |
+| LTspice Applications (4099 files) | 4099/4099 = 100 % | 4099/4099 = 100 % (no regression) |
+
+All three corpora now pass at 100 %.
+
+### Added
+
+- 2 pytest regression tests:
+  `test_sym_hint_ordering_does_not_misclassify_next_component`,
+  `test_one_pin_x_subcircuit_round_trip`.
+
 ## [0.3.9] — 2026-05-19
 
 ### Added (E1: MCP lint + stats tools)
