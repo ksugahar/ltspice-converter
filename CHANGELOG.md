@@ -40,13 +40,13 @@ multi-line directives into a single physical line.
 
 ### Performance
 
-Schemdraw arm round-trip pass rate (200-file sample per corpus):
+Schemdraw arm round-trip pass rate (full LAB-private corpora):
 
-| Corpus | 0.3.10 | 0.3.11 |
-|---|---|---|
-| GitHub repos | 191/200 = 95.5 % | **198/200 = 99.0 %** (+3.5 pt) |
-| LTspice Examples | 85/100 = 85.0 % | **98/100 = 98.0 %** (+13 pt) |
-| LTspice Applications | 198/200 = 99.0 % | 200/200 = 100 % |
+| Corpus | files | 0.3.10 (200-file sample) | 0.3.11 (full) |
+|---|---|---|---|
+| GitHub repos          |  720 | 191/200 = 95.5 % | **711/720 = 98.75 %** |
+| LTspice Examples      |  100 |  85/100 = 85.0 % | **98/100 = 98.0 %** (+13 pt) |
+| LTspice Applications  | 4099 | 198/200 = 99.0 % | **4086/4099 = 99.68 %** |
 
 The Examples bump is dominated by F1-1 (K-statement preservation);
 the GitHub-corpus bump and the dimmer.asc-style cases are mostly
